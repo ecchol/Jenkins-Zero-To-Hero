@@ -46,24 +46,43 @@ pipeline {
       }
     }
     stage('Update Deployment File') {
-        environment {
-            GIT_REPO_NAME = "Jenkins-Zero-To-Hero"
-            GIT_USER_NAME = "ecchol"
-        }
-        steps {
-            withCredentials([string(credentialsId: 'github', variable: 'GITHUB_TOKEN')]) {
+    environment {
+        GIT_REPO_NAME = "Jenkins-Zero-To-Hero"
+        GIT_USER_NAME = "ecchol"
+    }
+    steps {
+        withCredentials([string(credentialsId: 'github', variable: 'GITHUB_TOKEN')]) {
+            // Run all Git commands in the workspace root (where .git exists)
+            dir("${WORKSPACE}") {
                 sh '''
+                    echo "📂 Current directory: $(pwd)"
+                    echo "📄 Checking for .git directory..."
+                    ls -a | grep .git || echo "⚠️  .git not found!"
+
+                    # Set Git user info
                     git config user.email "rahul.burnwal@Oracle.com"
                     git config user.name "ecchol"
-                    git status
+
+                    # Show current branch
+                    echo "🔍 Current branch:"
+                    git branch --show-current || echo "Not a git repo?"
+
+                    # Replace image tag in deployment manifest
                     BUILD_NUMBER=${BUILD_NUMBER}
+                    echo "🚀 Updating deployment.yml with build number: ${BUILD_NUMBER}"
                     sed -i "s/replaceImageTag/${BUILD_NUMBER}/g" java-maven-sonar-argocd-helm-k8s/spring-boot-app-manifests/deployment.yml
+
+                    # Commit and push changes
                     git add java-maven-sonar-argocd-helm-k8s/spring-boot-app-manifests/deployment.yml
-                    git commit -m "Update deployment image to version ${BUILD_NUMBER}"
-                    git push https://${GITHUB_TOKEN}@github.com/${GIT_USER_NAME}/${GIT_REPO_NAME} HEAD:main
+                    git commit -m "Update deployment image to version ${BUILD_NUMBER}" || echo "✅ No changes to commit"
+                    
+                    echo "⬆️  Pushing changes to GitHub..."
+                    git push https://${GITHUB_TOKEN}@github.com/${GIT_USER_NAME}/${GIT_REPO_NAME}.git HEAD:main
                 '''
             }
         }
     }
+}
+
   }
 }
